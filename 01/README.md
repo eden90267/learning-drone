@@ -40,7 +40,7 @@ CI/CD Tools 工具選擇：Bamboo、Jenkins、Drone、Gitlab CI
 
 - .drone.yml：使用 yaml 管理專案流程
 
-  ![](/Users/eden.liu/Desktop/myProjects/learning-drone/assets/drone-yml.png)
+  ![](../assets/drone-yml.png)
 
 - 支援多數 Git Host
 
