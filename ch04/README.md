@@ -132,3 +132,179 @@ pipeline:
       - echo "Hi I am appleboy"
       - ls -al /home/appleboy/demo/
 ```
+
+## 上傳映象檔到 Public Registry (像是 Docker Hub)
+
+```yaml
+publish_latest:
+  image: plugins/docker
+  pull: true
+  repo: ${DRONE_REPO}
+  tags: ['latest']
+  secrets: [docker_username, docker_password]
+  when:
+    event: [push]
+    branch: [master]
+    local: false
+```
+
+### 實例
+
+```yaml
+workspace:
+  base: /node
+  path: drone/node-example
+
+clone:
+  git:
+    image: plugins/git
+    depath: 50
+    tags: true
+
+pipeline:
+  publish:
+    image: plugins/docker # 官方在維護的
+    group: publish
+    repo: eden90267/drone-nodejs-example
+    tags: [latest]
+    dockerfile: Dockerfile
+    secrets: [docker_username, docker_password]
+
+  publish:
+    image: plugins/docker
+    group: publish
+    repo: eden90267/drone-nodejs-example-2
+    tags: [latest]
+    dockerfile: Dockerfile.arm
+    secrets: [docker_username, docker_password]
+```
+
+## 上傳映像檔到 Private Registry (像是 Harbor)
+
+```yaml
+publish:
+  image: plugins/docker
+  insecure: true # 走 http protocol，所以要設為 true，如果走 https 可直接拿掉
+  registry: harbor.wu-boy.com
+  repo: harbor.wu-boy.com/test/demo
+  dockerfile: Dockerfile #  多個的話要指定要多個 pipeline
+  secrets: [docker_username, docker_password]
+  tags: [latest, 1.1]
+```
+
+harbor 由 vmware 出的 private registry，底層用 docker registry 2.0 配上 UI
+介面，有專案管理、使用者權限等
+
+如何使用你的私有的 docker image：
+
+```yaml
+golang:
+  image: harbor.wu-boy.com/test/golang:1.9.0-alpine3.6
+  group: testing
+  commands:
+    - go version
+```
+
+drone 後台新增 registry：host name、username 與 password，所以不需要
+secrets 的部分
+
+## 搭配 kubernetes 自動化部署
+
+- Drone-Kubernetes*：用 shell script 下 kubernetes 的指令更新 pod
+  做升級，可直接更新 pod 的 image tag
+- Drone-Kube：用 golang 下去寫的，搭配 k8s API 直接吃 deploy 的 yaml
+  檔案更新 kubernetes 的設定
+
+### 範例
+
+```yaml
+publish:
+  image: plugins/docker
+  repo: appleboy/k8s-node-demo
+  dockerfile: Dockerfile
+  secrets:
+    - source: demo_username
+      target: docker_username
+    - source: demo_password
+      target: docker_password
+  tags: [latest, '${DRONE_TAG}']
+  when:
+    event: tag
+
+deploy:
+  image: quay.io/honestbee/drone-kubernetes
+  namespace: demo # 在 k8s yaml 事先要建立好的
+  deployment: k8s-node-demo # 在 k8s yaml 事先要建立好的
+  repo: appleboy/k8s-node-demo # 在 k8s yaml 事先要建立好的
+  container: k8s-node-demo # 在 k8s yaml 事先要建立好的
+  tag: ${DRONE_TAG} # 根據 push 上去的 tag
+  secrets:
+    - source: k8s_server
+      target: plugin_kubernetes_server
+    - source: k8s_cret
+      target: plugin_kubernetes_cert
+    - source: k8s_token
+      target: plugin_kubernetes_token
+  when:
+    event: tag
+```
+
+在 k8s yaml 事先要建立好的 (deployment.yml)：
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: k8s-node-demo
+  namespace: demo
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: k8s-node-demo
+        tier: frontend
+    spec:
+      containers:
+      - image: appleboy/k8s-node-demo
+        name: k8s-node-demo
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-node-demo
+  namespace: demo
+  labels:
+    app: k8s-node-demo
+spec:
+  selector:
+    app: k8s-node-demo
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+```
+
+```shell
+$ kubectl create -f k8s # k8s 是資料夾，裡面有 deployment.yaml 檔案
+```
+
+## 消息通知 (Discord 範例)
+
