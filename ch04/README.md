@@ -308,3 +308,26 @@ $ kubectl create -f k8s # k8s 是資料夾，裡面有 deployment.yaml 檔案
 
 ## 消息通知 (Discord 範例)
 
+Discord 類似 Slack 通訊軟體
+
+建立 channel > Edit Channel > Webhooks > 建立一個 Webhooks，並 copy 其 URL
+
+再來修改 .drone.yaml
+
+```yaml
+install:
+  image: node:8.6.0
+  commands:
+    - exit 2
+    - node -v
+    - npm -v
+    - yarn --version
+    - yarn config set cache-folder .yarn-cache
+    - yarn install --pure-lockfile
+
+discord:
+  image: appleboy/drone-discord
+  secrets: [discord_webhook_ikd, discord_webhook_token]
+  when:
+    status: [success, failure]
+```
