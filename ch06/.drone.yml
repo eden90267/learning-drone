@@ -1,0 +1,17 @@
+pipeline:
+  backend:
+    image: golang
+    commands:
+      - echo "backend testing"
+
+  frontend:
+    image: golang
+    commands:
+      - echo "frontend testing"
+
+  deploy:
+    image: golang
+    commands:
+      - echo "frontend testing"
+    when:
+      local: false
